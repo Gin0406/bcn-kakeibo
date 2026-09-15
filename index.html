@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>暮らしの支出</title>
+<meta name="description" content="バルセロナ家計簿 - 個人用支出管理アプリ">
+<meta name="theme-color" content="#081b33">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="暮らしの支出">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ヘッダー -->
+  <header class="app-header safe-top">
+    <div class="header-row">
+      <h1 class="app-title">暮らしの支出</h1>
+      <button id="btnSettings" class="icon-btn" aria-label="設定">⚙️</button>
+    </div>
+
+    <div class="period-switch" role="tablist" aria-label="集計期間">
+      <button class="period-btn" data-period="today" role="tab">今日</button>
+      <button class="period-btn" data-period="month" role="tab">今月</button>
+      <button class="period-btn" data-period="all" role="tab">留学全体</button>
+    </div>
+
+    <div class="total-card">
+      <div class="total-main">
+        <span id="totalEur" class="total-eur">€0.00</span>
+        <span id="totalJpy" class="total-jpy">¥0</span>
+      </div>
+      <div class="rate-line">
+        <span id="rateLabel">€1 = ¥165.00</span>
+        <span id="rateMode" class="rate-badge">固定</span>
+      </div>
+    </div>
+
+    <div id="categorySummary" class="category-summary" aria-label="カテゴリ別小計"></div>
+  </header>
+
+  <!-- 円グラフ -->
+  <section class="chart-section">
+    <div class="section-head">
+      <h2 class="section-title">カテゴリ別</h2>
+      <button id="btnChartFilter" class="text-btn">表示カテゴリ</button>
+    </div>
+    <div class="chart-wrap">
+      <svg id="donutChart" viewBox="0 0 200 200" class="donut" aria-hidden="true"></svg>
+      <div id="donutCenter" class="donut-center">
+        <span id="donutTotal" class="donut-total">€0.00</span>
+        <span id="donutSub" class="donut-sub">合計</span>
+      </div>
+    </div>
+    <div id="chartLegend" class="chart-legend"></div>
+    <p id="chartEmpty" class="empty-msg" hidden>データがありません</p>
+  </section>
+
+  <!-- 履歴 -->
+  <section class="history-section">
+    <div class="section-head">
+      <h2 class="section-title">支出履歴</h2>
+      <span id="historyCount" class="history-count"></span>
+    </div>
+    <ul id="historyList" class="history-list"></ul>
+    <p id="historyEmpty" class="empty-msg" hidden>まだ支出はありません</p>
+  </section>
+
+  <div class="fab-spacer"></div>
+  <button id="btnAdd" class="fab safe-bottom">＋ 支出を追加</button>
+</div>
+
+<!-- 支出 追加/編集 モーダル -->
+<div id="expenseModal" class="modal-overlay" hidden>
+  <div class="modal-sheet safe-bottom" role="dialog" aria-modal="true" aria-labelledby="expenseModalTitle">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <h2 id="expenseModalTitle" class="modal-title">支出を追加</h2>
+      <button class="icon-btn" id="btnCloseExpense" aria-label="閉じる">✕</button>
+    </div>
+    <form id="expenseForm" class="modal-body">
+      <input type="hidden" id="expenseId">
+
+      <label class="field-label" for="expenseAmount">金額（€）</label>
+      <input type="text" inputmode="decimal" pattern="[0-9]*\.?[0-9]*" id="expenseAmount" class="amount-input" placeholder="0.00" required>
+
+      <label class="field-label" for="expenseCategory">カテゴリ</label>
+      <select id="expenseCategory" class="select-input" required></select>
+
+      <label class="field-label" for="expenseDate">日付</label>
+      <input type="date" id="expenseDate" class="text-input" required>
+
+      <label class="field-label" for="expenseMemo">メモ（任意・最大60文字）</label>
+      <div id="memoShortcuts" class="memo-shortcuts"></div>
+      <input type="text" id="expenseMemo" class="text-input" maxlength="60" placeholder="例：Mercadona 夕食の買い物">
+
+      <div class="modal-actions">
+        <button type="button" id="btnDeleteExpense" class="danger-btn" hidden>削除</button>
+        <button type="submit" class="primary-btn">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- 設定モーダル -->
+<div id="settingsModal" class="modal-overlay" hidden>
+  <div class="modal-sheet modal-sheet-tall safe-bottom" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <h2 id="settingsModalTitle" class="modal-title">設定とデータ</h2>
+      <button class="icon-btn" id="btnCloseSettings" aria-label="閉じる">✕</button>
+    </div>
+    <div class="modal-body settings-body">
+
+      <section class="settings-section">
+        <h3 class="settings-heading">カテゴリ</h3>
+        <ul id="categoryList" class="manage-list"></ul>
+        <div class="add-row">
+          <input type="text" id="newCategoryName" class="text-input" placeholder="新しいカテゴリ名" maxlength="20">
+          <button id="btnAddCategory" class="secondary-btn">追加</button>
+        </div>
+      </section>
+
+      <section class="settings-section">
+        <h3 class="settings-heading">よく使うメモ</h3>
+        <ul id="memoPresetList" class="manage-list"></ul>
+        <div class="add-row">
+          <input type="text" id="newMemoPreset" class="text-input" placeholder="新しい候補" maxlength="30">
+          <button id="btnAddMemoPreset" class="secondary-btn">追加</button>
+        </div>
+      </section>
+
+      <section class="settings-section">
+        <h3 class="settings-heading">為替レート</h3>
+        <div class="rate-toggle">
+          <label class="radio-row">
+            <input type="radio" name="rateMode" value="fixed" id="rateModeFixed">
+            <span>固定レート</span>
+          </label>
+          <input type="text" inputmode="decimal" id="fixedRateInput" class="text-input" placeholder="165.00">
+          <label class="radio-row">
+            <input type="radio" name="rateMode" value="live" id="rateModeLive">
+            <span>最新レート</span>
+          </label>
+          <button id="btnFetchRate" class="secondary-btn">最新レートを取得</button>
+          <p id="liveRateInfo" class="muted-text"></p>
+        </div>
+      </section>
+
+      <section class="settings-section">
+        <h3 class="settings-heading">留学期間</h3>
+        <label class="field-label" for="tripStart">開始日</label>
+        <input type="date" id="tripStart" class="text-input">
+        <label class="field-label" for="tripEnd">終了日</label>
+        <input type="date" id="tripEnd" class="text-input">
+      </section>
+
+      <button id="btnSaveSettings" class="primary-btn full-width">設定を保存</button>
+
+      <section class="settings-section">
+        <h3 class="settings-heading">バックアップ</h3>
+        <div class="backup-row">
+          <button id="btnExportCsv" class="secondary-btn">CSVを書き出す</button>
+          <button id="btnImportCsvTrigger" class="secondary-btn">CSVを読み込む</button>
+          <input type="file" id="importCsvFile" accept=".csv,text/csv" hidden>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<!-- 円グラフ表示カテゴリ選択 -->
+<div id="chartFilterModal" class="modal-overlay" hidden>
+  <div class="modal-sheet safe-bottom" role="dialog" aria-modal="true" aria-labelledby="chartFilterTitle">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <h2 id="chartFilterTitle" class="modal-title">表示カテゴリ</h2>
+      <button class="icon-btn" id="btnCloseChartFilter" aria-label="閉じる">✕</button>
+    </div>
+    <div class="modal-body">
+      <ul id="chartFilterList" class="manage-list"></ul>
+      <button id="btnApplyChartFilter" class="primary-btn full-width">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<!-- 確認ダイアログ -->
+<div id="confirmModal" class="modal-overlay" hidden>
+  <div class="confirm-box" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle">
+    <p id="confirmTitle" class="confirm-title"></p>
+    <p id="confirmDesc" class="confirm-desc"></p>
+    <div class="confirm-actions">
+      <button id="confirmCancel" class="secondary-btn">キャンセル</button>
+      <button id="confirmOk" class="danger-btn">実行</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+
+<script src="app.js"></script>
+</body>
+</html>
